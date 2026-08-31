@@ -47,6 +47,47 @@ redirect pages such as `/api/` → `/current/api/`, and each build scopes
 hand-authored root-relative links to its own version so an old page cannot
 silently jump into Current. Query strings and fragments survive redirects.
 
+## Production publication and rollback
+
+The initial versioned Material site and the later Zensical Current update are
+reviewed as pull requests from `versioned-docs` to `master` in
+`krypticmouse/dspy-docs`. Before merging the initial deployment pull request,
+preserve the existing site once:
+
+```bash
+git fetch origin master versioned-docs
+test -z "$(git ls-remote --heads origin legacy-material-backup)"
+git push origin origin/master:refs/heads/legacy-material-backup
+```
+
+The command intentionally fails if the backup already exists, so a later
+operation cannot silently replace the rollback point. Merge the reviewed
+deployment pull request normally. To roll back the complete migration, restore
+the backup tree with a normal commit:
+
+```bash
+git fetch origin master legacy-material-backup
+git switch -C rollback-material-docs origin/master
+git read-tree --reset -u origin/legacy-material-backup
+git commit -m "Restore Material documentation"
+git push origin HEAD:master
+```
+
+Current publication targets staging until production's Mike metadata identifies
+Zensical as the reviewed renderer. Release publication fails closed until that
+same marker is live. Production automation is therefore enabled only after the
+corresponding deployment pull requests have been reviewed and merged.
+
+After a stable `dspy` wheel reaches PyPI, the release workflow preserves that
+exact wheel, builds `/X.Y.Z/` from the tag, and publishes it through Mike. The
+`dspy-ai` compatibility package publishes in a separate downstream job, so its
+failure cannot suppress documentation for an already-published `dspy` wheel.
+Release-tag jobs never use GitHub's lossy pending-concurrency slot. Mutable
+Current keeps latest-wins serialization because a newer `main` build includes
+the superseded commit. Once running, deployment writes retry optimistic Git
+pushes; every release rechecks the Zensical promotion marker after refetching,
+and a delayed older patch cannot move an `/X.Y/` alias backward.
+
 ## Historical fidelity
 
 Versions 3.0 through 3.3 use the documentation source and Material
